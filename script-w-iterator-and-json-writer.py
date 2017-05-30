@@ -28,11 +28,11 @@ compounds_dict = csv.DictReader(
     delimiter=','
 )
 
-columns = defaultdict(list) # each value in each column is appended to a list
+prime = []
 
 for row in compounds_dict:
     InChiKey = row['InChiKey']
-    #print 'this is the current inchi: %s' % InChiKey
+    
 ########################################################################
 #Description: Get individual compound by standard InChi Key
 #Input: Standard InChi Key
@@ -69,10 +69,11 @@ for row in compounds_dict:
 #Input: Compound ChEMBLID 
 #Output: List of drug mechanism of action and ChEMBL target details 
     compound_mech_of_action = json.loads(requests.get("http://www.ebi.ac.uk/chemblws/compounds/%s/drugMechanism.json" % compound_ID).content)
-
-    #merged_data = InChiKey_data.items() + compound_data.items() + compound_bioactivities.items() + compound_altforms.items() +  compound_mech_of_action.items()
-    # string dump of the merged dict
-#     with open("/Users/giancolombi/Desktop/moon/Neuro/InChi_Data/data_for_%s.json" % InChiKey, "w") as json_file:
-#         json.dump(merged_data, json_file)
-
+    
+    #put the data together
+    compound_data.update(compound_bioactivities)
+    compound_data.update(compound_altforms)
+    prime.append(compound_data)
+    
+print "done"
     
