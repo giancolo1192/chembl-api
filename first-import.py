@@ -7,25 +7,25 @@ import re
 import boto3
 import os
 import requests
+import sys
 from py2neo import Graph
 from py2neo import Path, authenticate
 ######
 
 ########################################################################
 # set up authentication parameters
-authenticate("localhost:7474", "neo4j", "4jNeo")
+authentication = authenticate("ec2-54-164-94-156.compute-1.amazonaws.com:7474", "neo4j", "Rn)BZ-C<adh4")
 
 # Connect to graph and add constraints.
-neo4jUrl = os.environ.get('NEO4J_URL',"http://localhost:7474/db/data/")
+neo4jUrl = os.environ.get('NEO4J_URL','http://ec2-54-164-94-156.compute-1.amazonaws.com:7474/db/data')
 
-
-graph = Graph(neo4jUrl,secure=False)
+graph = Graph(neo4jUrl, secure=False)
 query = """
-        CREATE (r:Resource {name: 'ChEMBL'})
+        MERGE (r:Resource {name: 'ChEMBL'})
         """
 results = graph.run(query)
 tx = graph.begin()
-tx.commit()
+commit = tx.commit()
 
 # We use the compound ChEMBL ID, target ChEMBL ID and assay ChEMBL ID as inputs for our API calls
 
@@ -35,22 +35,22 @@ status = json.loads(requests.get("http://www.ebi.ac.uk/chemblws/status/").conten
 s3 = boto3.client('s3')
 compounds_object = s3.get_object(
     Bucket='compounds', 
-    Key='compundlist/titles.csv', 
+    Key='compundlist/compoundlist.csv', 
     ResponseContentType='text/csv'
 )
 compounds_dict = csv.DictReader(
     compounds_object['Body'].read().split('\n'), 
     delimiter=','
 )
-
 #prime stores all found compound data
 prime = []
 
 #Loops through all InChiKeys
-for row in compounds_dict:
+for indx ,row in enumerate(compounds_dict):
+    if indx % 100 == 0:
+	print indx
     InChiKey = row['InChiKey']
     compound_data = {}
-    print InChiKey
 ########################################################################
 #Description: Get individual compound by standard InChi Key
 #Input: Standard InChi Key
