@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import urllib
+import pprint
 import requests
 import json
 import csv
@@ -14,19 +15,29 @@ from py2neo import Path, authenticate
 
 ########################################################################
 # set up authentication parameters
-authentication = authenticate("ec2-54-164-94-156.compute-1.amazonaws.com:7474", "neo4j", "Rn)BZ-C<adh4")
+ec2 = boto3.client('ec2')
+dbInstances = ec2.describe_instances(Filters=[{'Name':'tag:Group', 'Values':['TruvitechDB']}])
+dbIps = []
+for reservation in dbInstances['Reservations']:
+    for instance in reservation['Instances']:
+	dbIps.append(instance['PublicDnsName'])
+#authenticate(dbIps[0] + ":7474", 'neo4j', 'Rn)BZ-C<adh4')
+authenticate('ec2-54-162-94-61.compute-1.amazonaws.com:7474', 'neo4j', 'Rn)BZ-C<adh4')
+#authentication = authenticate("ec2-54-162-94-61.compute-1.amazonaws.com:7474", "neo4j", "Rn)BZ-C<adh4")
 
 # Connect to graph and add constraints.
-neo4jUrl = os.environ.get('NEO4J_URL','http://ec2-54-164-94-156.compute-1.amazonaws.com:7474/db/data')
+neo4jUrl = os.environ.get('NEO4J_URL','ec2-54-162-94-61.compute-1.amazonaws.com:7474/db/data')
 
 graph = Graph(neo4jUrl, secure=False)
+print graph
+sys.exit()
 query = """
         MERGE (r:Resource {name: 'ChEMBL'})
         """
 results = graph.run(query)
 tx = graph.begin()
 commit = tx.commit()
-
+sys.exit
 # We use the compound ChEMBL ID, target ChEMBL ID and assay ChEMBL ID as inputs for our API calls
 
 #check for the status of the ChEMBL API
