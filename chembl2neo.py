@@ -14,13 +14,23 @@ from py2neo import Path, authenticate
 
 ########################################################################
 # set up authentication parameters
-authenticate("localhost:7474", "neo4j", "4jNeo")
+ec2 = boto3.client('ec2')
+masterInstance = ec2.describe_instances(
+    Filters=[
+        {
+            'Name':'tag:Rank', 
+            'Values':['Master']
+        },
+        {
+	    'Name':'tag:Group',
+	    'Values':['TruvitechDB']
+	}
+    ]
+)
+IP = masterInstance['Reservations'][0]['Instances'][0]['PublicDnsName']
+authenticate(IP + ":7474", 'neo4j', 'Rn)BZ-C<adh4')
 
-# Connect to graph and add constraints.
-neo4jUrl = os.environ.get('NEO4J_URL',"http://localhost:7474/db/data/")
-
-
-graph = Graph(neo4jUrl,secure=False)
+graph = Graph('http://' + IP + ":7474/db/data", secure=False)
 query = """
         MERGE (r:Resource {name: 'ChEMBL'})
         """
@@ -36,7 +46,7 @@ status = json.loads(requests.get("http://www.ebi.ac.uk/chemblws/status/").conten
 s3 = boto3.client('s3')
 compounds_object = s3.get_object(
     Bucket='compounds', 
-    Key='compundlist/compoundlist_short.csv', 
+    Key='compundlist/compoundlist.csv', 
     ResponseContentType='text/csv'
 )
 compounds_dict = csv.DictReader(
@@ -97,7 +107,6 @@ for row in compounds_dict:
     prime.append(compound_data)
 k = 1
 for i in prime:
-    print 'adding compound #%s' % k
     compoundData = i
     query = """
     WITH {compoundData} as comp
@@ -177,13 +186,9 @@ for i in prime:
             tx = graph.begin()
             tx.commit()
             accession = target_data['target']['proteinAccession']
-            #accession = "Q9HAZ1,P45983,Q9NRP7"
-            #print accession
             accessionSplit = accession.split(',')
             if len(accessionSplit) > 1:
-                #print accessionSplit
                 for a in accessionSplit:
-                    #print i
                     properties['accessionCheck'] = a
                     query = """
                     WITH {properties} as comp
@@ -198,4 +203,3 @@ for i in prime:
                     tx = graph.begin()
                     tx.commit()
     k += 1
-print "Done w/ compounds"

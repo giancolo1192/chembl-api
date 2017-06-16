@@ -36,14 +36,6 @@ for IP in dbIps:
     authenticate(IP + ":7474", 'neo4j', 'Rn)BZ-C<adh4')
     graphConnections.append(Graph('http://' + IP + ":7474/db/data", secure=False))
 
-
-#authentication = authenticate('ec2-54-91-133-26.compute-1.amazonaws.com:7474', 'neo4j', 'Rn)BZ-C<adh4')
-
-# Connect to graph and add constraints.
-#neo4jUrl = os.environ.get('NEO4J_URL','http://ec2-54-91-133-26.compute-1.amazonaws.com:7474/db/data')
-
-#graph = Graph('http://ec2-54-91-133-26.compute-1.amazonaws.com:7474/db/data', secure=False)
-print "made it past authentication"
 graph = graphConnections[0]
 query = """
         MERGE (r:Resource {name: 'ChEMBL'})
@@ -51,8 +43,6 @@ query = """
 results = graph.run(query)
 tx = graph.begin()
 commit = tx.commit()
-print "made it past commit"
-sys.exit()
 # We use the compound ChEMBL ID, target ChEMBL ID and assay ChEMBL ID as inputs for our API calls
 
 #check for the status of the ChEMBL API
