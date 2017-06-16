@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import urllib
+import pprint
 import requests
 import json
 import csv
@@ -29,7 +30,6 @@ masterInstance = ec2.describe_instances(
 )
 IP = masterInstance['Reservations'][0]['Instances'][0]['PublicDnsName']
 authenticate(IP + ":7474", 'neo4j', 'Rn)BZ-C<adh4')
-
 graph = Graph('http://' + IP + ":7474/db/data", secure=False)
 query = """
         MERGE (r:Resource {name: 'ChEMBL'})
@@ -37,7 +37,6 @@ query = """
 results = graph.run(query)
 tx = graph.begin()
 tx.commit()
-
 # We use the compound ChEMBL ID, target ChEMBL ID and assay ChEMBL ID as inputs for our API calls
 
 #check for the status of the ChEMBL API
@@ -50,7 +49,7 @@ compounds_object = s3.get_object(
     ResponseContentType='text/csv'
 )
 compounds_dict = csv.DictReader(
-    compounds_object['Body'].read().split('\n'), 
+    compounds_object['Body'].read().decode("utf-8-sig").split('\n'), 
     delimiter=','
 )
 
