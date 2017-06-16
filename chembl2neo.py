@@ -58,7 +58,11 @@ compounds_dict = csv.DictReader(
 prime = []
 
 #Loops through all InChiKeys
-for row in compounds_dict:
+for index,row in enumerate(compounds_dict):
+    if index == 0:
+	print "PRIME"
+    if index % 500 == 0:
+	print index
     InChiKey = row['InChiKey']
     compound_data = {}
 ########################################################################
@@ -106,7 +110,11 @@ for row in compounds_dict:
     
     prime.append(compound_data)
 k = 1
-for i in prime:
+for index2,i in enumerate(prime):
+    if index2 == 0:
+	print "QUERIES"
+    if index2 % 500 == 0:
+	print index2 
     compoundData = i
     query = """
     WITH {compoundData} as comp
