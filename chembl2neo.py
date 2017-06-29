@@ -29,6 +29,8 @@ masterInstance = ec2.describe_instances(
     ]
 )
 IP = masterInstance['Reservations'][0]['Instances'][0]['PublicDnsName']
+#print IP
+#sys.exit()
 authenticate(IP + ":7474", 'neo4j', 'Rn)BZ-C<adh4')
 graph = Graph('http://' + IP + ":7474/db/data", secure=False)
 query = """
@@ -54,14 +56,16 @@ compounds_dict = csv.DictReader(
 )
 
 #prime stores all found compound data
-prime = []
+#prime = []
 
 #Loops through all InChiKeys
 for index,row in enumerate(compounds_dict):
     if index == 0:
 	print "PRIME"
-    if index % 500 == 0:
-	print index
+    if index < 4475:
+	continue
+    #if index % 100 == 0:
+	#print index
     InChiKey = row['InChiKey']
     compound_data = {}
 ########################################################################
@@ -85,15 +89,15 @@ for index,row in enumerate(compounds_dict):
 #Input: Compound ChEMBLID 
 #Output: Byte array image data
     urladdy = 'http://www.ebi.ac.uk/chemblws/compounds/%s/image/' % compound_ID
-    filename = r'/home/giancolombi/Desktop/image_of_%s.png' % InChiKey
+    filename = r'/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey
     urllib.urlretrieve(urladdy, filename)
-    open_path = open('/home/giancolombi/Desktop/image_of_%s.png' % InChiKey)
-    img_src = open('/home/giancolombi/Desktop/image_of_%s.png' % InChiKey).read()
+    open_path = open('/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey)
+    img_src = open('/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey).read()
     image = {'imageURL' : 'http://www.ebi.ac.uk/chemblws/compounds/%s/image/' % compound_ID,'imageByteArray' : img_src.encode('base64')}
     open_path.close()
     compound_data.update(image)
     #Delete the png after storing byte array
-    os.remove('/home/giancolombi/Desktop/image_of_%s.png' % InChiKey)
+    os.remove('/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey)
 ########################################################################
 #Description: Get individual compound bioactivities 
 #Input: Compound ChEMBLID 
@@ -106,17 +110,17 @@ for index,row in enumerate(compounds_dict):
 #Output: List of ChEMBLIDs which correspond to alternative forms of query compound 
     compound_altforms = json.loads(requests.get("http://www.ebi.ac.uk/chemblws/compounds/%s/form.json" % compound_ID).content)
     compound_data.update(compound_altforms)
-    
-    prime.append(compound_data)
-k = 1
-for index2,i in enumerate(prime):
-    if index2 == 0:
-	print "QUERIES"
-    if index2 % 500 == 0:
-	print index2 
-    compoundData = i
+
+    #prime.append(compound_data)
+#k = 1
+#for index2,i in enumerate(prime):
+    #if index2 == 0:
+	#print "QUERIES"
+    #if index2 % 100 == 0:
+	#print index2
+    #compoundData = prime
     query = """
-    WITH {compoundData} as comp
+    WITH {compound_data} as comp
     UNWIND comp.compound as data
     MATCH (r:Resource) WHERE r.name = 'ChEMBL'
     MERGE (cmpd:Compound {InChiKey:data.stdInChiKey}) ON CREATE
@@ -132,13 +136,13 @@ for index2,i in enumerate(prime):
     MERGE (img:Image {URL:comp.imageURL})
     MERGE (cmpd)-[:Image]->(img)
     """
-    results = graph.run(query,compoundData=compoundData)
+    results = graph.run(query,compound_data=compound_data)
     tx = graph.begin()
     tx.commit()
-    for l in i['forms']:
+    for l in compound_data['forms']:
         if l['parent'] == True:
             properties = {}
-            properties['compound'] = i['compound']
+            properties['compound'] = compound_data['compound']
             properties['parent'] = l
             query = """
             WITH {properties} as comp
@@ -151,15 +155,18 @@ for index2,i in enumerate(prime):
             results = graph.run(query, properties=properties)
             tx = graph.begin()
             tx.commit()
-    for j in i['bioactivities']:
+    for j in compound_data['bioactivities']:
         bioData = j
         properties = {}
-        properties['compound'] = i['compound']
+        properties['compound'] = compound_data['compound']
         properties['bioData'] = j
         target_chembl = j['target_chemblid']
         bioType = j['bioactivity_type']
-        target_data = json.loads(requests.get("http://www.ebi.ac.uk/chemblws/targets/%s.json" % target_chembl).content)
-        properties['targetData'] = target_data['target']
+	target_response = requests.get("http://www.ebi.ac.uk/chemblws/targets/%s.json" % target_chembl).content
+	if "error" in target_response or "Compound not found" in target_response:
+	    continue
+        target_data = json.loads(target_response)
+	properties['targetData'] = target_data['target']
         if ('proteinAccession' in target_data['target'].keys()) and ('Kd' in bioType or 'Ki' in bioType or 'IC50' in bioType):
             query = """
             WITH {properties} as comp
@@ -209,4 +216,5 @@ for index2,i in enumerate(prime):
                     results = graph.run(query, properties=properties)
                     tx = graph.begin()
                     tx.commit()
-    k += 1
+    #print "added a compound"
+print "Done with DB"
