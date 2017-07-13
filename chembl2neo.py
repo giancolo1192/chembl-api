@@ -41,8 +41,21 @@ tx = graph.begin()
 tx.commit()
 # We use the compound ChEMBL ID, target ChEMBL ID and assay ChEMBL ID as inputs for our API calls
 
+global_i = 0
+
 #check for the status of the ChEMBL API
-status = json.loads(requests.get("http://www.ebi.ac.uk/chemblws/status/").content)
+request = requests.get("http://www.ebi.ac.uk/chemblws/status/")
+status = request.status_code
+status_i = 0
+if status < 200 and status >= 400:
+	while status < 200 and status >= 400:
+		request = requests.get("http://www.ebi.ac.uk/chemblws/status/")
+		status = request.status_code
+		status_i += 1
+		if status_i > 10:
+			print global_i
+			sys.exit()
+status = json.loads(request.content)
 
 s3 = boto3.client('s3')
 compounds_object = s3.get_object(
@@ -216,5 +229,6 @@ for index,row in enumerate(compounds_dict):
                     results = graph.run(query, properties=properties)
                     tx = graph.begin()
                     tx.commit()
+	global_i += 1
     #print "added a compound"
 print "Done with DB"
