@@ -111,7 +111,7 @@ compounds_dict = csv.DictReader(
 for index,row in enumerate(compounds_dict):
     global_i = index
     print index
-    if index < 4824:
+    if index < 72493:
 	continue
     InChiKey = row['InChiKey']
     compound_data = {}
