@@ -29,33 +29,70 @@ masterInstance = ec2.describe_instances(
     ]
 )
 IP = masterInstance['Reservations'][0]['Instances'][0]['PublicDnsName']
-#print IP
-#sys.exit()
 authenticate(IP + ":7474", 'neo4j', 'Rn)BZ-C<adh4')
 graph = Graph('http://' + IP + ":7474/db/data", secure=False)
 query = """
         MERGE (r:Resource {name: 'ChEMBL'})
+	return r
         """
-results = graph.run(query)
-tx = graph.begin()
-tx.commit()
+results = graph.run(query).data()
+#tx = graph.begin()
+#tx.commit()
 # We use the compound ChEMBL ID, target ChEMBL ID and assay ChEMBL ID as inputs for our API calls
 
 global_i = 0
 
-#check for the status of the ChEMBL API
-request = requests.get("http://www.ebi.ac.uk/chemblws/status/")
-status = request.status_code
-status_i = 0
-if status < 200 and status >= 400:
-	while status < 200 and status >= 400:
-		request = requests.get("http://www.ebi.ac.uk/chemblws/status/")
-		status = request.status_code
+def check_status(url):
+	try:
+	    response = requests.get(url)
+	except requests.exceptions.ConnectionError as e:
+	    return "connection error %s" % e[0]
+	except requests.exceptions.HTTPError as e:
+	    return "http error %s" % e[0]
+	except requests.exceptions.Timeout as e:
+	    return "timeout error"
+	except requests.exceptions.RequestException as e:
+	    return "general error %s" % e[0]
+	
+	status = response.status_code
+	status_i = 0
+	if status < 200 or status >= 400:
+	    while status < 200 or status >= 400:
 		status_i += 1
+		response = requests.get(url)
+		status = response.status_code
 		if status_i > 10:
-			print global_i
-			sys.exit()
-status = json.loads(request.content)
+		    return  "status error %d on %d" % (status, global_i)
+		    break
+	    return response
+	return response
+
+def move_on(url):
+	#truthy and falsy values not acceptable for cont
+	#test return value strictly for True or False using ==
+	ret = {"cont": True, "resp": ""}
+	handled = check_status(url)
+	if handled == 404:
+	    ret["cont"] == True
+	elif hasattr(handled, "content"):
+	    content = handled.content
+	    if "error" in content or "Compound not found" in content:
+		ret["cont"] = True
+	    else:
+		ret["cont"] = False
+		ret["resp"] = handled
+	elif "error" in handled:
+	    print handled
+	    ret["cont"] = True
+	return ret
+
+
+#Check for the status of the ChEMBL API
+handled = move_on("http://www.ebi.ac.uk/chemblws/status")
+if handled["cont"] == True:
+    print "Could not reach Chembl"
+    sys.exit()
+status = json.loads(handled["resp"].content)
 
 s3 = boto3.client('s3')
 compounds_object = s3.get_object(
@@ -67,36 +104,41 @@ compounds_dict = csv.DictReader(
     compounds_object['Body'].read().decode("utf-8-sig").split('\n'), 
     delimiter=','
 )
-
 #prime stores all found compound data
 #prime = []
 
 #Loops through all InChiKeys
 for index,row in enumerate(compounds_dict):
-    if index == 0:
-	print "PRIME"
-    if index < 4475:
+    global_i = index
+    print index
+    if index < 4824:
 	continue
-    #if index % 100 == 0:
-	#print index
     InChiKey = row['InChiKey']
     compound_data = {}
 ########################################################################
 #Description: Get individual compound by standard InChi Key
 #Input: Standard InChi Key
 #Output: Compound Record
-    response = requests.get("http://www.ebi.ac.uk/chemblws/compounds/stdinchikey/%s.json" % InChiKey).content
-    if 'error' in response or 'Compound not found' in response:
-        continue
-    InChiKey_data = json.loads(requests.get("http://www.ebi.ac.uk/chemblws/compounds/stdinchikey/%s.json" % InChiKey).content)
+    handled = move_on("http://www.ebi.ac.uk/chemblws/compounds/stdinchikey/%s.json" % InChiKey)
+    if handled["cont"] == True:
+	continue
+    else:
+	response = handled["resp"] 
+    InChiKey_data = json.loads(response.content)
     compound_ID = InChiKey_data["compound"]["chemblId"]
 
 ########################################################################
 #Description: Get compound by ChEMBLID 
 #Input: Compound ChEMBLID 
 #Output: Compound Record 
-    cmpd_data = json.loads(requests.get("http://www.ebi.ac.uk/chemblws/compounds/%s.json" % compound_ID).content)
+    handled = move_on("http://www.ebi.ac.uk/chemblws/compounds/%s.json" % compound_ID)
+    if handled["cont"] == True:
+	continue
+    else:
+	response = handled["resp"]
+    cmpd_data = json.loads(response.content)
     compound_data.update(cmpd_data)
+
 ########################################################################
 #Description: Get the image of a given compound. 
 #Input: Compound ChEMBLID 
@@ -111,17 +153,29 @@ for index,row in enumerate(compounds_dict):
     compound_data.update(image)
     #Delete the png after storing byte array
     os.remove('/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey)
+
 ########################################################################
 #Description: Get individual compound bioactivities 
 #Input: Compound ChEMBLID 
 #Output: List of all bioactivity records in ChEMBLdb for a given compound ChEMBLID 
-    compound_bioactivities = json.loads(requests.get("http://www.ebi.ac.uk/chemblws/compounds/%s/bioactivities.json" % compound_ID).content)
+    handled = move_on("http://www.ebi.ac.uk/chemblws/compounds/%s/bioactivities.json" % compound_ID)
+    if handled["cont"] == True:
+	continue
+    else:
+	response = handled["resp"]
+    compound_bioactivities = json.loads(response.content)
     compound_data.update(compound_bioactivities)
+
 ########################################################################
 #Description: Get alternative compound forms (e.g. parent and salts) of a compound 
 #Input: Compound ChEMBLID 
-#Output: List of ChEMBLIDs which correspond to alternative forms of query compound 
-    compound_altforms = json.loads(requests.get("http://www.ebi.ac.uk/chemblws/compounds/%s/form.json" % compound_ID).content)
+#Output: List of ChEMBLIDs which correspond to alternative forms of query compound  
+    handled = move_on("http://www.ebi.ac.uk/chemblws/compounds/%s/form.json" % compound_ID)
+    if handled["cont"] == True:
+	continue
+    else:
+	response = handled["resp"]
+    compound_altforms = json.loads(response.content)
     compound_data.update(compound_altforms)
 
     #prime.append(compound_data)
@@ -150,8 +204,9 @@ for index,row in enumerate(compounds_dict):
     MERGE (cmpd)-[:Image]->(img)
     """
     results = graph.run(query,compound_data=compound_data)
-    tx = graph.begin()
-    tx.commit()
+    #tx = graph.begin()
+    #tx.commit()
+
     for l in compound_data['forms']:
         if l['parent'] == True:
             properties = {}
@@ -166,19 +221,21 @@ for index,row in enumerate(compounds_dict):
             MERGE (parent)<-[:SaltOf]-(cmpd)
             """
             results = graph.run(query, properties=properties)
-            tx = graph.begin()
-            tx.commit()
+            #tx = graph.begin()
+            #tx.commit()
     for j in compound_data['bioactivities']:
         bioData = j
         properties = {}
         properties['compound'] = compound_data['compound']
         properties['bioData'] = j
         target_chembl = j['target_chemblid']
-        bioType = j['bioactivity_type']
-	target_response = requests.get("http://www.ebi.ac.uk/chemblws/targets/%s.json" % target_chembl).content
-	if "error" in target_response or "Compound not found" in target_response:
+        bioType = j['bioactivity_type']	
+    	handled = move_on("http://www.ebi.ac.uk/chemblws/targets/%s.json" % target_chembl)
+        if handled["cont"] == True:
 	    continue
-        target_data = json.loads(target_response)
+        else:
+	    target_response = handled["resp"]
+        target_data = json.loads(target_response.content)
 	properties['targetData'] = target_data['target']
         if ('proteinAccession' in target_data['target'].keys()) and ('Kd' in bioType or 'Ki' in bioType or 'IC50' in bioType):
             query = """
@@ -210,8 +267,8 @@ for index,row in enumerate(compounds_dict):
             MERGE (l)<-[:ReferencedIn]-(k)
             """
             results = graph.run(query, properties=properties)
-            tx = graph.begin()
-            tx.commit()
+            #tx = graph.begin()
+            #tx.commit()
             accession = target_data['target']['proteinAccession']
             accessionSplit = accession.split(',')
             if len(accessionSplit) > 1:
@@ -229,6 +286,5 @@ for index,row in enumerate(compounds_dict):
                     results = graph.run(query, properties=properties)
                     tx = graph.begin()
                     tx.commit()
-	global_i += 1
     #print "added a compound"
 print "Done with DB"
