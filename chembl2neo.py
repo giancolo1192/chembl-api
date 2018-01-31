@@ -19,7 +19,7 @@ ec2 = boto3.client('ec2')
 masterInstance = ec2.describe_instances(
     Filters=[
         {
-            'Name':'tag:Rank', 
+            'Name':'tag:Rank',
             'Values':['Master']
         },
         {
@@ -53,7 +53,7 @@ def check_status(url):
 	    return "timeout error"
 	except requests.exceptions.RequestException as e:
 	    return "general error %s" % e[0]
-	
+
 	status = response.status_code
 	status_i = 0
 	if status < 200 or status >= 400:
@@ -96,12 +96,12 @@ status = json.loads(handled["resp"].content)
 
 s3 = boto3.client('s3')
 compounds_object = s3.get_object(
-    Bucket='compounds', 
-    Key='compundlist/compoundlist.csv', 
+    Bucket='compounds',
+    Key='compundlist/compoundlist.csv',
     ResponseContentType='text/csv'
 )
 compounds_dict = csv.DictReader(
-    compounds_object['Body'].read().decode("utf-8-sig").split('\n'), 
+    compounds_object['Body'].read().decode("utf-8-sig").split('\n'),
     delimiter=','
 )
 #prime stores all found compound data
@@ -123,14 +123,14 @@ for index,row in enumerate(compounds_dict):
     if handled["cont"] == True:
 	continue
     else:
-	response = handled["resp"] 
+	response = handled["resp"]
     InChiKey_data = json.loads(response.content)
     compound_ID = InChiKey_data["compound"]["chemblId"]
 
 ########################################################################
-#Description: Get compound by ChEMBLID 
-#Input: Compound ChEMBLID 
-#Output: Compound Record 
+#Description: Get compound by ChEMBLID
+#Input: Compound ChEMBLID
+#Output: Compound Record
     handled = move_on("http://www.ebi.ac.uk/chemblws/compounds/%s.json" % compound_ID)
     if handled["cont"] == True:
 	continue
@@ -140,8 +140,8 @@ for index,row in enumerate(compounds_dict):
     compound_data.update(cmpd_data)
 
 ########################################################################
-#Description: Get the image of a given compound. 
-#Input: Compound ChEMBLID 
+#Description: Get the image of a given compound.
+#Input: Compound ChEMBLID
 #Output: Byte array image data
     urladdy = 'http://www.ebi.ac.uk/chemblws/compounds/%s/image/' % compound_ID
     filename = r'/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey
@@ -155,9 +155,9 @@ for index,row in enumerate(compounds_dict):
     os.remove('/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey)
 
 ########################################################################
-#Description: Get individual compound bioactivities 
-#Input: Compound ChEMBLID 
-#Output: List of all bioactivity records in ChEMBLdb for a given compound ChEMBLID 
+#Description: Get individual compound bioactivities
+#Input: Compound ChEMBLID
+#Output: List of all bioactivity records in ChEMBLdb for a given compound ChEMBLID
     handled = move_on("http://www.ebi.ac.uk/chemblws/compounds/%s/bioactivities.json" % compound_ID)
     if handled["cont"] == True:
 	continue
@@ -167,9 +167,9 @@ for index,row in enumerate(compounds_dict):
     compound_data.update(compound_bioactivities)
 
 ########################################################################
-#Description: Get alternative compound forms (e.g. parent and salts) of a compound 
-#Input: Compound ChEMBLID 
-#Output: List of ChEMBLIDs which correspond to alternative forms of query compound  
+#Description: Get alternative compound forms (e.g. parent and salts) of a compound
+#Input: Compound ChEMBLID
+#Output: List of ChEMBLIDs which correspond to alternative forms of query compound
     handled = move_on("http://www.ebi.ac.uk/chemblws/compounds/%s/form.json" % compound_ID)
     if handled["cont"] == True:
 	continue
@@ -191,7 +191,7 @@ for index,row in enumerate(compounds_dict):
     UNWIND comp.compound as data
     MATCH (r:Resource) WHERE r.name = 'ChEMBL'
     MERGE (cmpd:Compound {InChiKey:data.stdInChiKey}) ON CREATE
-        SET cmpd.canonicalSMILES = data.smiles, 
+        SET cmpd.canonicalSMILES = data.smiles,
         cmpd.resourceID = data.chemblId,
         cmpd.molecularWeight = data.molecularWeight,
         cmpd.molecularFormula = data.molecularFormula,
@@ -229,7 +229,7 @@ for index,row in enumerate(compounds_dict):
         properties['compound'] = compound_data['compound']
         properties['bioData'] = j
         target_chembl = j['target_chemblid']
-        bioType = j['bioactivity_type']	
+        bioType = j['bioactivity_type']
     	handled = move_on("http://www.ebi.ac.uk/chemblws/targets/%s.json" % target_chembl)
         if handled["cont"] == True:
 	    continue
