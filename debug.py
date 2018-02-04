@@ -12,12 +12,32 @@ from py2neo import Graph, Node, Relationship
 from py2neo import Path, authenticate
 ######
 
+# Sever connection
+# ec2 = boto3.client('ec2')
+# masterInstance = ec2.describe_instances(
+#     Filters=[
+#         {
+#             'Name':'tag:Rank',
+#             'Values':['Master']
+#         },
+#         {
+#             'Name':'tag:Group',
+#             'Values':['TruvitechDB']
+#         }
+#     ]
+# )
+# IP = masterInstance['Reservations'][0]['Instances'][0]['PublicDnsName']
+# authenticate(IP + ":7474", 'neo4j', 'Rn)BZ-C<adh4')
+# graph = Graph('http://' + IP + ":7474/db/data", secure=False)
+
+#Local connection
 authenticate("localhost:7474", 'april', 'L8kc,![(^X3Q')
 graph = Graph("localhost:7474/db/data", secure=False)
+
 tx = graph.begin()
 query = """
         MERGE (r:Resource {name: 'ChEMBL'})
-	return r
+        return r
         """
 results = graph.run(query).data()
 tx.commit()
@@ -56,8 +76,6 @@ def check_status(url):
 def move_on(url):
     """ Determines whether or not to let the code continue based on HTTP errors.
 
-    ret['continue'] is a strict Boolean. So it is best to test the return of this function in strict terms.
-
     :param url: The url to test
     :type url: string
     :returns:
@@ -86,3 +104,50 @@ if handled["continue"] == True:
     print("Could not reach ChEMBL")
     sys.exit()
 status = json.loads(handled["response"].content)
+
+#Compound list from server
+# s3 = boto3.client('s3')
+# compounds_object = s3.get_object(
+#     Bucket='compounds',
+#     Key='compundlist/compoundlist.csv',
+#     ResponseContentType='text/csv'
+# )
+# compounds_dict = csv.DictReader(
+#     compounds_object['Body'].read().decode("utf-8-sig").split('\n'),
+#     delimiter=','
+# )
+
+#Local compound list
+c_file = open("../compoundlist-short.csv", 'r')
+compounds_dict = csv.DictReader(c_file)
+
+#Loops through all InChiKeys
+for index,row in enumerate(compounds_dict):
+    global_i = index
+    InChiKey = row['InChiKey']
+    compound_data = {}
+########################################################################
+#Description: Get individual compound by standard InChi Key
+#Input: Standard InChi Key
+#Output: Compound Record
+    handled = move_on("http://www.ebi.ac.uk/chemblws/compounds/stdinchikey/%s.json" % InChiKey)
+    if handled["continue"] == True:
+        continue
+    else:
+        response = handled["response"]
+    InChiKey_data = json.loads(response.content)
+    compound_ID = InChiKey_data["compound"]["chemblId"]
+
+########################################################################
+#Description: Get compound by ChEMBLID
+#Input: Compound ChEMBLID
+#Output: Compound Record
+    handled = move_on("http://www.ebi.ac.uk/chemblws/compounds/%s.json" % compound_ID)
+    if handled["continue"] == True:
+        continue
+    else:
+        response = handled["response"]
+    cmpd_data = json.loads(response.content)
+    compound_data.update(cmpd_data)
+
+c_file.close()
