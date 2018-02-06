@@ -197,6 +197,7 @@ for index,row in enumerate(compounds_dict):
 
     #creates the base compound and image nodes with attachment to resource
     #Use CREATE instead of MERGE? (Not with testing ^.^')
+    # Can we use Py2neo functions instead of the query to make the query?
     query = """
     WITH {compound_data} as comp
     UNWIND comp.compound as data
