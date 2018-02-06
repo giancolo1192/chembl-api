@@ -124,6 +124,8 @@ compounds_dict = csv.DictReader(c_file)
 #Loops through all InChiKeys
 for index,row in enumerate(compounds_dict):
     global_i = index
+    if(index < 24):
+        continue
     InChiKey = row['InChiKey']
     compound_data = {}
 ########################################################################
@@ -180,6 +182,17 @@ for index,row in enumerate(compounds_dict):
         response = handled["response"]
     compound_bioactivities = json.loads(response.content)
     compound_data.update(compound_bioactivities)
-    print(index)
+
+########################################################################
+#Description: Get alternative compound forms (e.g. parent and salts) of a compound
+#Input: Compound ChEMBLID
+#Output: List of ChEMBLIDs which correspond to alternative forms of query compound
+    handled = move_on("http://www.ebi.ac.uk/chemblws/compounds/%s/form.json" % compound_ID)
+    if handled["continue"] == True:
+        continue
+    else:
+        response = handled["response"]
+    compound_altforms = json.loads(response.content)
+    compound_data.update(compound_altforms)
 
 c_file.close()
