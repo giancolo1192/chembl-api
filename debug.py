@@ -52,13 +52,13 @@ def check_status(url):
     try:
         response = requests.get(url)
     except requests.exceptions.ConnectionError as e:
-        return "connection error %s" % e[0]
+        return "connection error %s" % e
     except requests.exceptions.HTTPError as e:
-        return "http error %s" % e[0]
+        return "http error %s" % e
     except requests.exceptions.Timeout as e:
         return "timeout error"
     except requests.exceptions.RequestException as e:
-        return "general error %s" % e[0]
+        return "general error %s" % e
 
     status = response.status_code
     status_i = 0
@@ -118,8 +118,9 @@ status = json.loads(handled["response"].content)
 # )
 
 #Local compound list
-c_file = open("../compoundlist-short.csv", 'r')
+c_file = open("../compoundlist-short.csv")
 compounds_dict = csv.DictReader(c_file)
+compound_file = open("../compound-data.txt", 'w')
 
 #Loops through all InChiKeys
 for index,row in enumerate(compounds_dict):
@@ -150,4 +151,38 @@ for index,row in enumerate(compounds_dict):
     cmpd_data = json.loads(response.content)
     compound_data.update(cmpd_data)
 
+    ########################################################################
+    #Description: Get the image of a given compound.
+    #Input: Compound ChEMBLID
+    #Output: Byte array image data
+    #byte data not used later. Store the image in s3 and link to that?
+    # urladdy = 'http://www.ebi.ac.uk/chemblws/compounds/%s/image/' % compound_ID
+    # filename = r'/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey
+    # urllib.urlretrieve(urladdy, filename)
+    # open_path = open('/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey)
+    # img_src = open('/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey).read()
+    image = {
+    'imageURL' : 'http://www.ebi.ac.uk/chemblws/compounds/%s/image/' % compound_ID,
+    # 'imageByteArray' : img_src.encode('base64')
+    }
+    # open_path.close()
+    compound_data.update(image)
+    #Delete the png after storing byte array
+    # os.remove('/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey)
+
+########################################################################
+#Description: Get individual compound bioactivities
+#Input: Compound ChEMBLID
+#Output: List of all bioactivity records in ChEMBLdb for a given compound ChEMBLID
+    handled = move_on("http://www.ebi.ac.uk/chemblws/compounds/%s/bioactivities.json" % compound_ID)
+    if handled["continue"] == True:
+        continue
+    else:
+        response = handled["response"]
+    compound_bioactivities = json.loads(response.content)
+    compound_data.update(compound_bioactivities)
+    pprint.pprint(compound_data, compound_file)
+    print(index)
+
+compound_file.close()
 c_file.close()
