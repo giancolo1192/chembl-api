@@ -124,8 +124,6 @@ compounds_dict = csv.DictReader(c_file)
 #Loops through all InChiKeys
 for index,row in enumerate(compounds_dict):
     global_i = index
-    if(index < 24):
-        continue
     InChiKey = row['InChiKey']
     compound_data = {}
 ########################################################################
@@ -197,7 +195,8 @@ for index,row in enumerate(compounds_dict):
 
     #creates the base compound and image nodes with attachment to resource
     #Use CREATE instead of MERGE? (Not with testing ^.^')
-    # Can we use Py2neo functions instead of the query to make the query?
+    # Can we use Py2neo functions instead of the string to make the query?
+    # Would it be a good idea to keep the transaction open at least for one iteration of the loop?
     query = """
     WITH {compound_data} as comp
     UNWIND comp.compound as data
@@ -216,5 +215,23 @@ for index,row in enumerate(compounds_dict):
     MERGE (cmpd)-[:Image]->(img)
     """
     results = graph.run(query,compound_data=compound_data)
+
+    #Add parent nodes and relationships
+    for l in compound_data['forms']:
+        if l['parent'] == True:
+            properties = {}
+            properties['compound'] = compound_data['compound']
+            properties['parent'] = l
+            query = """
+            WITH {properties} as comp
+            UNWIND comp.compound as data
+            UNWIND comp.parent as par
+            MATCH (cmpd:Compound) WHERE cmpd.InChiKey = data.stdInChiKey
+            MERGE (parent:Compound  {resourceID: par.chemblId})
+            MERGE (parent)<-[:SaltOf]-(cmpd)
+            """
+            results = graph.run(query, properties=properties).data()
+            pprint.pprint(results)
+    print("Iteration: %d" % index)
 
 c_file.close()
