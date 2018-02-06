@@ -195,4 +195,25 @@ for index,row in enumerate(compounds_dict):
     compound_altforms = json.loads(response.content)
     compound_data.update(compound_altforms)
 
+    #creates the base compound and image nodes with attachment to resource
+    #Use CREATE instead of MERGE? (Not with testing ^.^')
+    query = """
+    WITH {compound_data} as comp
+    UNWIND comp.compound as data
+    MATCH (r:Resource) WHERE r.name = 'ChEMBL'
+    MERGE (cmpd:Compound {InChiKey:data.stdInChiKey}) ON CREATE
+        SET cmpd.canonicalSMILES = data.smiles,
+        cmpd.resourceID = data.chemblId,
+        cmpd.molecularWeight = data.molecularWeight,
+        cmpd.molecularFormula = data.molecularFormula,
+        cmpd.knownDrug = data.knownDrug,
+        cmpd.synonyms = data.synonyms,
+        cmpd.rotatableBonds = data.rotatableBonds,
+        cmpd.preferredCompoundName = data.preferredCompoundName
+    MERGE (r)<-[:From]-(cmpd)
+    MERGE (img:Image {URL:comp.imageURL})
+    MERGE (cmpd)-[:Image]->(img)
+    """
+    results = graph.run(query,compound_data=compound_data)
+
 c_file.close()
