@@ -120,7 +120,6 @@ status = json.loads(handled["response"].content)
 #Local compound list
 c_file = open("../compoundlist-short.csv")
 compounds_dict = csv.DictReader(c_file)
-compound_file = open("../compound-data.txt", 'w')
 
 #Loops through all InChiKeys
 for index,row in enumerate(compounds_dict):
@@ -181,8 +180,6 @@ for index,row in enumerate(compounds_dict):
         response = handled["response"]
     compound_bioactivities = json.loads(response.content)
     compound_data.update(compound_bioactivities)
-    pprint.pprint(compound_data, compound_file)
     print(index)
 
-compound_file.close()
 c_file.close()
