@@ -40,7 +40,6 @@ query = """
         return r
         """
 results = graph.run(query).data()
-tx.commit()
 
 # We use the compound ChEMBL ID, target ChEMBL ID and assay ChEMBL ID as inputs for our API calls
 def check_status(url):
@@ -124,6 +123,8 @@ compounds_dict = csv.DictReader(c_file)
 #Loops through all InChiKeys
 for index,row in enumerate(compounds_dict):
     global_i = index
+    if index > 0:
+        break
     InChiKey = row['InChiKey']
     compound_data = {}
 ########################################################################
@@ -214,7 +215,7 @@ for index,row in enumerate(compounds_dict):
     MERGE (img:Image {URL:comp.imageURL})
     MERGE (cmpd)-[:Image]->(img)
     """
-    results = graph.run(query,compound_data=compound_data)
+    # graph.run(query,compound_data=compound_data)
 
     #Add parent nodes and relationships
     for l in compound_data['forms']:
@@ -230,8 +231,71 @@ for index,row in enumerate(compounds_dict):
             MERGE (parent:Compound  {resourceID: par.chemblId})
             MERGE (parent)<-[:SaltOf]-(cmpd)
             """
-            results = graph.run(query, properties=properties).data()
-            pprint.pprint(results)
-    print("Iteration: %d" % index)
+            # graph.run(query, properties=properties)
+
+    #add bioactivities
+    for cnt,j in enumerate(compound_data['bioactivities']):
+        if(cnt > 29):
+            break
+        bioData = j
+        properties = {}
+        properties['compound'] = compound_data['compound']
+        properties['bioData'] = j
+        target_chembl = j['target_chemblid']
+        bioType = j['bioactivity_type']
+        handled = move_on("http://www.ebi.ac.uk/chemblws/targets/%s.json" % target_chembl)
+        if handled["continue"] == True:
+            continue
+        else:
+            target_response = handled["response"]
+        target_data = json.loads(target_response.content)
+        properties['targetData'] = target_data['target']
+        if ('proteinAccession' in target_data['target'].keys()) and ('Kd' in bioType or 'Ki' in bioType or 'IC50' in bioType):
+            query = """
+            WITH {properties} as comp
+            UNWIND comp.bioData as bios
+            UNWIND comp.compound as data
+            UNWIND comp.targetData as target
+            MATCH (cmpd:Compound) WHERE cmpd.InChiKey = data.stdInChiKey
+            MATCH (r:Resource) WHERE r.name = 'ChEMBL'
+            MERGE (k:Kinase {rcsID: bios.target_chemblid}) ON CREATE
+                SET k.targetName = bios.target_name,
+                k.nameInRef = bios.name_in_reference,
+                k.ingredientCompoundChemblID = bios.ingredient_cmpd_chemblid,
+                k.organism = bios.organism,
+                k.accession = target.proteinAccession,
+                k.targetType = target.targetType,
+                k.geneNames = target.geneNames,
+                k.compoundCount = target.compoundCount,
+                k.bioactivityCount = target.bioactivityCount,
+                k.synonyms = target.synonyms
+            MERGE (cmpd)-[b:Bioactivity {bioactivityType: bios.bioactivity_type}]-(k) ON CREATE
+                SET b.units = bios.units,
+                b.value = bios.value,
+                b.targetConfidence = bios.target_confidence,
+                b.resourceAssayID = bios.assay_chemblid,
+                b.assayDescription = bios.assay_description,
+                b.assayType = bios.assay_type
+            MERGE (l:Literature {ref: bios.reference})
+            MERGE (l)<-[:ReferencedIn]-(k)
+            """
+            results = graph.run(query, properties=properties)
+            accession = target_data['target']['proteinAccession']
+            accessionSplit = accession.split(',')
+            if len(accessionSplit) > 1:
+                for a in accessionSplit:
+                    properties['accessionCheck'] = a
+                    query = """
+                    WITH {properties} as comp
+                    UNWIND comp.bioData as bios
+                    UNWIND comp.accessionCheck as acc
+                    UNWIND comp.targetData as target
+                    MATCH (complex:Kinase) WHERE complex.accession = target.proteinAccession
+                    MERGE (single:Kinase {accession: acc})
+                    MERGE (complex)<-[:Complex]-(single)
+                    """
+                    results = graph.run(query, properties=properties)
+        print(cnt)
+    tx.commit()
 
 c_file.close()
