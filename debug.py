@@ -151,21 +151,11 @@ for index,row in enumerate(compounds_dict):
     ########################################################################
     #Description: Get the image of a given compound.
     #Input: Compound ChEMBLID
-    #Output: Byte array image data
-    #byte data not used later. Store the image in s3 and link to that?
-    # urladdy = 'http://www.ebi.ac.uk/chemblws/compounds/%s/image/' % compound_ID
-    # filename = r'/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey
-    # urllib.urlretrieve(urladdy, filename)
-    # open_path = open('/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey)
-    # img_src = open('/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey).read()
+    #Output: Image link
     image = {
     'imageURL' : 'http://www.ebi.ac.uk/chemblws/compounds/%s/image/' % compound_ID,
-    # 'imageByteArray' : img_src.encode('base64')
     }
-    # open_path.close()
     compound_data.update(image)
-    #Delete the png after storing byte array
-    # os.remove('/home/ubuntu/chembl-api/image_of_%s.png' % InChiKey)
 
 ########################################################################
 #Description: Get individual compound bioactivities
