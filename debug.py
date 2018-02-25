@@ -34,7 +34,6 @@ from py2neo import Path, authenticate
 authenticate("localhost:7474", 'april', 'L8kc,![(^X3Q')
 graph = Graph("localhost:7474/db/data", secure=False)
 
-tx = graph.begin()
 query = """
         MERGE (r:Resource {name: 'ChEMBL'})
         return r
@@ -119,12 +118,10 @@ status = json.loads(handled["response"].content)
 #Local compound list
 c_file = open("../compoundlist-short.csv")
 compounds_dict = csv.DictReader(c_file)
-
 #Loops through all InChiKeys
 for index,row in enumerate(compounds_dict):
+    tx = graph.begin()
     global_i = index
-    if index > 0:
-        break
     InChiKey = row['InChiKey']
     compound_data = {}
 ########################################################################
@@ -215,7 +212,7 @@ for index,row in enumerate(compounds_dict):
     MERGE (img:Image {URL:comp.imageURL})
     MERGE (cmpd)-[:Image]->(img)
     """
-    # graph.run(query,compound_data=compound_data)
+    graph.run(query,compound_data=compound_data)
 
     #Add parent nodes and relationships
     for l in compound_data['forms']:
@@ -231,12 +228,11 @@ for index,row in enumerate(compounds_dict):
             MERGE (parent:Compound  {resourceID: par.chemblId})
             MERGE (parent)<-[:SaltOf]-(cmpd)
             """
-            # graph.run(query, properties=properties)
+            graph.run(query, properties=properties)
+    tx.process()
 
     #add bioactivities
     for cnt,j in enumerate(compound_data['bioactivities']):
-        if(cnt > 29):
-            break
         bioData = j
         properties = {}
         properties['compound'] = compound_data['compound']
@@ -295,7 +291,6 @@ for index,row in enumerate(compounds_dict):
                     MERGE (complex)<-[:Complex]-(single)
                     """
                     results = graph.run(query, properties=properties)
-        print(cnt)
     tx.commit()
 
 c_file.close()
